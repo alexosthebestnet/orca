@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ORCA Wake Word Detection System</title>
+</head>
+<body>
+    <h1>ORCA Wake Word Detection</h1>
+    <button id="start_button" onclick="toggleRecognition()">Start Listening</button>
+    <div id="results">
+        <span id="final_span" class="final"></span>
+        <span id="interim_span" class="interim"></span>
+    </div>
+
+    <script>
+        var recognition = new webkitSpeechRecognition() || new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        var final_transcript = '';
+        var recognizing = false;
+        var wakeWordDetected = false;
+
+        recognition.onstart = function() {
+            recognizing = true;
+            document.getElementById('start_button').textContent = 'Stop Listening';
+        };
+
+        recognition.onerror = function(event) {
+            console.error('Speech recognition error', event.error);
+        };
+
+        recognition.onend = function() {
+            if (recognizing) {
+                recognition.start(); // Automatically restart recognition
+            } else {
+                document.getElementById('start_button').textContent = 'Start Listening';
+            }
+        };
+
+        recognition.onresult = function(event) {
+            var interim_transcript = '';
+
+            for (var i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    final_transcript += event.results[i][0].transcript;
+                } else {
+                    interim_transcript += event.results[i][0].transcript;
+                }
+            }
+            
+            // Update the interim results
+            document.getElementById('interim_span').innerHTML = interim_transcript;
+
+            // Check if wake word is detected
+            if (!wakeWordDetected) {
+                wakeWordDetected = /orca|ok/i.test(final_transcript);
+            }
+
+            // If wake word detected, process the following words as command
+            if (wakeWordDetected) {
+                document.getElementById('final_span').innerHTML = final_transcript;
+
+                // Reset wake word detection for the next command
+                wakeWordDetected = false;
+                
+                // Provide feedback
+                speakCommand(final_transcript);
+                final_transcript = ''; // Reset transcript for the next command
+            }
+        };
+
+        function toggleRecognition() {
+            if (recognizing) {
+                recognition.stop();
+                recognizing = false;
+            } else {
+                final_transcript = ''; // Reset transcript
+                wakeWordDetected = false; // Reset wake word detection
+                recognition.start();
+            }
+        }
+
+        function speakCommand(command) {
+            var utterance = new SpeechSynthesisUtterance(command);
+            window.speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
