@@ -1,90 +1,104 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ORCA Wake Word Detection System</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORCA Interaction</title>
+<script src="https://code.responsivevoice.org/responsivevoice.js?key=yourKey"></script>
 </head>
 <body>
-    <h1>ORCA Wake Word Detection</h1>
-    <button id="start_button" onclick="toggleRecognition()">Start Listening</button>
-    <div id="results">
-        <span id="final_span" class="final"></span>
-        <span id="interim_span" class="interim"></span>
-    </div>
+<h1>ORCA AI Assistant</h1>
+<button id="start_button" onclick="toggleRecognition()">Start Listening</button>
+<div id="results">
+    <span id="final_span" class="final"></span>
+    <span id="interim_span" class="interim"></span>
+</div>
 
-    <script>
-        var recognition = new webkitSpeechRecognition() || new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
+<script>
+var recognition = new webkitSpeechRecognition() || new SpeechRecognition();
+recognition.continuous = true;
+recognition.interimResults = true;
+recognition.lang = 'en-US';
 
-        var final_transcript = '';
-        var recognizing = false;
-        var wakeWordDetected = false;
+var recognizing = false;
+var wakeWordDetected = false;
 
-        recognition.onstart = function() {
-            recognizing = true;
-            document.getElementById('start_button').textContent = 'Stop Listening';
-        };
+recognition.onstart = function() {
+    recognizing = true;
+    document.getElementById('start_button').textContent = 'Stop Listening';
+};
 
-        recognition.onerror = function(event) {
-            console.error('Speech recognition error', event.error);
-        };
+recognition.onerror = function(event) {
+    console.error('Speech recognition error', event.error);
+};
 
-        recognition.onend = function() {
-            if (recognizing) {
-                recognition.start(); // Automatically restart recognition
-            } else {
-                document.getElementById('start_button').textContent = 'Start Listening';
-            }
-        };
+recognition.onend = function() {
+    if (recognizing) {
+        recognition.start(); // Automatically restart recognition
+    } else {
+        document.getElementById('start_button').textContent = 'Start Listening';
+    }
+};
 
-        recognition.onresult = function(event) {
-            var interim_transcript = '';
+recognition.onresult = function(event) {
+    var interim_transcript = '';
+    var final_transcript = '';
 
-            for (var i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    final_transcript += event.results[i][0].transcript;
-                } else {
-                    interim_transcript += event.results[i][0].transcript;
+    for (var i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+            final_transcript += event.results[i][0].transcript;
+        } else {
+            interim_transcript += event.results[i][0].transcript;
+        }
+    }
+
+    if (!wakeWordDetected) {
+        wakeWordDetected = /orca|ok/i.test(final_transcript);
+    }
+
+    if (wakeWordDetected) {
+        wakeWordDetected = false; // Reset for next detection
+        sendToAI(final_transcript.replace(/orca|ok/i, '').trim()); // Remove wake word and send to AI
+    }
+
+    document.getElementById('final_span').innerHTML = final_transcript;
+    document.getElementById('interim_span').innerHTML = interim_transcript;
+};
+
+function toggleRecognition() {
+    if (recognizing) {
+        recognition.stop();
+        recognizing = false;
+    } else {
+        recognition.start();
+    }
+}
+
+async function sendToAI(userQuery) {
+    const response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + 'LqPG0v3gBu7thyQfitBdGnbZlmp6Qo3x' // Replace with your actual token from deepctl auth token
+        },
+        body: JSON.stringify({
+            model: "mistralai/Mistral-7B-Instruct-v0.1",
+            messages: [
+                {
+                    "role": "user",
+                    "content": userQuery
                 }
-            }
-            
-            // Update the interim results
-            document.getElementById('interim_span').innerHTML = interim_transcript;
+            ]
+        })
+    });
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+    speakResponse(aiResponse);
+}
 
-            // Check if wake word is detected
-            if (!wakeWordDetected) {
-                wakeWordDetected = /orca|ok/i.test(final_transcript);
-            }
-
-            // If wake word detected, process the following words as command
-            if (wakeWordDetected) {
-                document.getElementById('final_span').innerHTML = final_transcript;
-
-                // Reset wake word detection for the next command
-                wakeWordDetected = false;
-                
-                // Provide feedback
-                speakCommand(final_transcript);
-                final_transcript = ''; // Reset transcript for the next command
-            }
-        };
-
-        function toggleRecognition() {
-            if (recognizing) {
-                recognition.stop();
-                recognizing = false;
-            } else {
-                final_transcript = ''; // Reset transcript
-                wakeWordDetected = false; // Reset wake word detection
-                recognition.start();
-            }
-        }
-
-        function speakCommand(command) {
-            var utterance = new SpeechSynthesisUtterance(command);
-            window.speechSynthesis.speak(utterance);
-        }
-    </script>
+function speakResponse(message) {
+    responsiveVoice.speak(message, "UK English Female");
+}
+</script>
 </body>
 </html>
